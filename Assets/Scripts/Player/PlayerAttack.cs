@@ -1,56 +1,99 @@
 using UnityEngine;
 
+[DisallowMultipleComponent]
 public class PlayerAttack : MonoBehaviour
 {
+    [Header("References")]
+    public PlayerStats stats;
     public GameObject projectilePrefab;
-    public float attackCooldown = 1f;
-    public float projectileSpeed = 10f;
-    public float attackRange = 10f;
 
-    private float attackTimer = 0f;
+    [Header("Targeting")]
+    public float targetRange = 25f;
+    public LayerMask enemyMask;
+
+    private float cooldownTimer = 0f;
+    private float currentCooldown = 1f;
+
+    private bool initialized = false; // защита от двойного вызова
+
+    private void Awake()
+    {
+        if (stats == null)
+            stats = GetComponent<PlayerStats>();
+    }
+
+    private void OnEnable()
+    {
+        if (stats != null)
+            stats.OnStatsChanged += OnStatsChanged;
+
+        InitializeCooldown();
+    }
+
+    private void OnDisable()
+    {
+        if (stats != null)
+            stats.OnStatsChanged -= OnStatsChanged;
+    }
 
     private void Update()
     {
-        attackTimer -= Time.deltaTime;
+        if (!initialized || stats == null || projectilePrefab == null) return;
 
-        if (attackTimer <= 0f)
-        {
-            GameObject target = FindClosestEnemy();
-            if (target != null)
-            {
-                Shoot(target);
-                attackTimer = attackCooldown;
-            }
-        }
+        cooldownTimer -= Time.deltaTime;
+        if (cooldownTimer > 0f) return;
+
+        Transform target = FindClosestEnemy();
+        if (target == null) return;
+
+        Fire(target);
+        cooldownTimer = currentCooldown;
     }
 
-    private GameObject FindClosestEnemy()
+    private void InitializeCooldown()
     {
-        GameObject[] enemies = GameObject.FindGameObjectsWithTag("Enemy");
-        GameObject closest = null;
-        float minDistance = Mathf.Infinity;
+        RecalculateCooldown();
+        initialized = true;
+    }
 
-        foreach (GameObject enemy in enemies)
+    private void OnStatsChanged()
+    {
+        // Если игрок в игре и система уже инициализирована — пересчитать кулдаун
+        if (initialized)
+            RecalculateCooldown();
+    }
+
+    private void RecalculateCooldown()
+    {
+        float shotsPerSecond = Mathf.Max(0.1f, stats.attackSpeed);
+        currentCooldown = 1f / shotsPerSecond;
+    }
+
+    private void Fire(Transform target)
+    {
+        GameObject projObj = Instantiate(projectilePrefab, transform.position, Quaternion.identity);
+        Projectile proj = projObj.GetComponent<Projectile>();
+
+        if (proj != null)
+            proj.Init(target, stats.attackDamage);
+    }
+
+    private Transform FindClosestEnemy()
+    {
+        Collider[] hits = Physics.OverlapSphere(transform.position, targetRange, enemyMask);
+        float best = float.MaxValue;
+        Transform closest = null;
+
+        foreach (var hit in hits)
         {
-            float distance = Vector3.Distance(transform.position, enemy.transform.position);
-            if (distance < minDistance && distance <= attackRange)
+            float dist = (hit.transform.position - transform.position).sqrMagnitude;
+            if (dist < best)
             {
-                minDistance = distance;
-                closest = enemy;
+                best = dist;
+                closest = hit.transform;
             }
         }
 
         return closest;
-    }
-
-    private void Shoot(GameObject target)
-    {
-        Vector3 direction = (target.transform.position - transform.position).normalized;
-        GameObject projectile = Instantiate(projectilePrefab, transform.position, Quaternion.identity);
-        Rigidbody rb = projectile.GetComponent<Rigidbody>();
-        if (rb != null)
-            rb.velocity = direction * projectileSpeed;
-        else
-            DebugManager.LogError("Projectile prefab missing Rigidbody!");
     }
 }

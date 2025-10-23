@@ -1,20 +1,29 @@
-using UnityEngine;
+Ôªøusing UnityEngine;
+using System;
 
 public class EnemyHealth : MonoBehaviour
 {
-    public int maxHealth = 3;
-    private int currentHealth;
+    [Header("Health")]
+    [SerializeField] private int maxHealth = 3;
+    public int MaxHealth => maxHealth;          // –ø—É–±–ª–∏—á–Ω—ã–π –¥–æ—Å—Ç—É–ø –∫ –º–∞–∫—Å–∏–º—É–º—É
+    public int CurrentHealth { get; private set; } // –ø—É–±–ª–∏—á–Ω—ã–π –≥–µ—Ç—Ç–µ—Ä –¥–ª—è —Ç–µ–∫—É—â–µ–≥–æ HP
+
+    [Header("Drops")]
+    [SerializeField] private GameObject essencePrefab;
+
+    public Action onDeath;
 
     private void Awake()
     {
-        currentHealth = maxHealth;
+        CurrentHealth = maxHealth;
     }
 
     public void TakeDamage(int damage)
     {
-        currentHealth -= damage;
+        if (damage <= 0) return;
 
-        if (currentHealth <= 0)
+        CurrentHealth -= damage;
+        if (CurrentHealth <= 0)
         {
             Die();
         }
@@ -22,7 +31,12 @@ public class EnemyHealth : MonoBehaviour
 
     private void Die()
     {
-        // “ÛÚ ÔÓÁÊÂ ÏÓÊÌÓ ‰Ó·‡‚ËÚ¸ ‚˚Ô‡‰ÂÌËÂ ˝ÒÒÂÌˆËË
+        if (essencePrefab != null)
+        {
+            Instantiate(essencePrefab, transform.position + Vector3.up * 0.5f, Quaternion.identity);
+        }
+
+        onDeath?.Invoke();
         Destroy(gameObject);
     }
 }
