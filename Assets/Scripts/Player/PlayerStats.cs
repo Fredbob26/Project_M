@@ -1,49 +1,62 @@
 using UnityEngine;
-using System;
 
-[DisallowMultipleComponent]
 public class PlayerStats : MonoBehaviour
 {
-    [Header("Base Stats")]
-    public float moveSpeed = 5f;
-    public float attackSpeed = 1f;               // выстрелов в секунду
-    public int attackDamage = 1;
-    public float pickupRadius = 2.5f;
-    public float timerBonusPerEssence = 3f;
-    public int maxHealth = 1;
+    private StaticConfig _cfg;
 
-    public event Action OnStatsChanged;
+    // === Текущие значения ===
+    public float MoveSpeed { get; private set; }
+    public float AttackSpeed { get; private set; }
+    public float AttackDamage { get; private set; }
+    public float CritChance { get; private set; }
+    public float RicochetChance { get; private set; }
 
-    public void ApplyUpgrade(UpgradeData data)
+    // === Инициализация из StaticConfig ===
+    public void ResetFromConfig(StaticConfig cfg)
     {
-        switch (data.type)
-        {
-            case UpgradeType.AttackDamage:
-                attackDamage += Mathf.RoundToInt(data.value);
-                break;
-            case UpgradeType.AttackSpeed:
-                attackSpeed *= (1f + data.value); // 0.15 = +15%
-                break;
-            case UpgradeType.MoveSpeed:
-                moveSpeed *= (1f + data.value);
-                break;
-            case UpgradeType.PickupRadius:
-                pickupRadius += data.value;
-                break;
-            case UpgradeType.TimerBonus:
-                timerBonusPerEssence += data.value;
-                break;
-            case UpgradeType.MaxHealth:
-                maxHealth += Mathf.RoundToInt(data.value);
-                break;
-        }
-
-        OnStatsChanged?.Invoke();
+        _cfg = cfg;
+        MoveSpeed = cfg.baseMoveSpeed;
+        AttackSpeed = cfg.baseAttackSpeed;
+        AttackDamage = cfg.baseDamage;
+        CritChance = cfg.baseCritChance;
+        RicochetChance = cfg.baseRicochetChance;
     }
 
-    private void OnValidate()
+    // === Методы для модификации ===
+    public void AddMoveSpeed(float amount) => MoveSpeed += amount;
+    public void AddAttackSpeed(float amount) => AttackSpeed += amount;
+    public void AddDamage(float amount) => AttackDamage += amount;
+    public void AddCritChance(float percent) => CritChance = Mathf.Clamp01(CritChance + percent);
+    public void AddRicochetChance(float percent) => RicochetChance = Mathf.Clamp01(RicochetChance + percent);
+
+    // === Главное: применение апгрейда ===
+    public void ApplyUpgrade(UpgradeType type, float value)
     {
-        if (Application.isPlaying)
-            OnStatsChanged?.Invoke();
+        switch (type)
+        {
+            case UpgradeType.MoveSpeed:
+                AddMoveSpeed(value);
+                break;
+
+            case UpgradeType.AttackSpeed:
+                AddAttackSpeed(value);
+                break;
+
+            case UpgradeType.AttackDamage:
+                AddDamage(value);
+                break;
+
+            case UpgradeType.CritChance:
+                AddCritChance(value);
+                break;
+
+            case UpgradeType.RicochetChance:
+                AddRicochetChance(value);
+                break;
+
+            default:
+                Debug.LogWarning($"PlayerStats: неизвестный тип апгрейда {type}");
+                break;
+        }
     }
 }

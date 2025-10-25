@@ -1,0 +1,15 @@
+fileFormatVersion: 2
+guid: 8e30ddd9d0252df488d9e78ec54bb109
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences:
+  - config: {fileID: 11400000, guid: ba69fb3008a4da34ea5a91166f2ca8f2, type: 2}
+  - lifeTimer: {instanceID: 0}
+  - hud: {instanceID: 0}
+  - deathScreen: {instanceID: 0}
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

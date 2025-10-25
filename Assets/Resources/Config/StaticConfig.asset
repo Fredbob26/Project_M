@@ -1,0 +1,30 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1e4d793a95919e14193ba8a7574e76f0, type: 3}
+  m_Name: StaticConfig
+  m_EditorClassIdentifier: 
+  startSeconds: 60
+  maxSeconds: 60
+  essenceSeconds: 2
+  contactDamageSeconds: 3
+  contactDamageCooldown: 1
+  baseMoveSpeed: 7
+  baseAttackSpeed: 1
+  baseDamage: 5
+  baseCritChance: 0.05
+  baseRicochetChance: 0
+  attackInterval: 1
+  projectileSpeed: 18
+  projectileDamage: 3
+  targetRadius: 20
+  enemyBaseHP: 9
+  enemyBaseSpeed: 3
