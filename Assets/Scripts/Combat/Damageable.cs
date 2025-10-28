@@ -1,26 +1,61 @@
+﻿using System;
 using UnityEngine;
 
-public class Damageable : MonoBehaviour
+[DisallowMultipleComponent]
+public class Damageable : MonoBehaviour, IDamageable
 {
-    public int maxHP = 10;
-    private int _hp;
+    [SerializeField] public int maxHP = 10;
+    [SerializeField] private int _hp;
 
-    public System.Action OnDeath;
+    public int Current => _hp;
+    public int Max => maxHP;
+
+    public event Action<int, int, bool> OnDamaged; // (current, max, isCrit)
+    public event Action OnDeath;
+
+    private bool _dead;
 
     private void OnEnable()
     {
+        _dead = false;
+        _hp = Mathf.Max(1, maxHP);
+    }
+
+    /// <summary>Правильная инициализация снаружи (НЕ вызывать OnEnable).</summary>
+    public void Initialize(int max)
+    {
+        maxHP = Mathf.Max(1, max);
+        _dead = false;
         _hp = maxHP;
+        OnDamaged?.Invoke(_hp, maxHP, false); // синхронизируем UI, если нужно
     }
 
-    public void TakeDamage(int dmg)
+    public void TakeDamage(int dmg) => ApplyDamage(dmg, false);
+
+    public void ApplyDamage(float amount, bool isCrit = false)
     {
-        _hp -= dmg;
-        if (_hp <= 0) Die();
+        if (_dead) return;
+
+        int dmg = Mathf.RoundToInt(Mathf.Max(0f, amount));
+        if (dmg <= 0) return;
+
+        _hp = Mathf.Clamp(_hp - dmg, 0, maxHP);
+        OnDamaged?.Invoke(_hp, maxHP, isCrit);
+
+        if (_hp <= 0 && !_dead)
+        {
+            _dead = true;
+            OnDeath?.Invoke();
+            Destroy(gameObject);
+        }
     }
 
-    void Die()
+    public void Heal(int amount)
     {
-        OnDeath?.Invoke();
-        Destroy(gameObject);
+        if (_dead) return;
+        if (amount <= 0) return;
+
+        _hp = Mathf.Clamp(_hp + amount, 0, maxHP);
+        OnDamaged?.Invoke(_hp, maxHP, false);
     }
 }

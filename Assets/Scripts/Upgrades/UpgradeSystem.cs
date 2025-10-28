@@ -24,8 +24,6 @@ public class UpgradeSystem
     public UpgradeSystem(UpgradeDatabase db, PlayerStats stats)
     {
         _stats = stats;
-
-        // инициализируем из базы
         foreach (var def in db.upgrades)
         {
             if (!_upgrades.ContainsKey(def.type))
@@ -33,27 +31,36 @@ public class UpgradeSystem
         }
     }
 
-    public void ApplyUpgrade(UpgradeDefinition def)
-    {
-        if (!_upgrades.TryGetValue(def.type, out var u)) return;
-
-        // криты и рикошеты — максимум 100%
-        if ((def.type == UpgradeType.CritChance && _stats.CritChance >= 1f) ||
-            (def.type == UpgradeType.RicochetChance && _stats.RicochetChance >= 1f))
-            return;
-
-        _stats.ApplyUpgrade(def.type, def.valueStep);
-        u.level++;
-    }
-
     public int GetLevel(UpgradeType type)
     {
         return _upgrades.TryGetValue(type, out var u) ? u.level : 0;
     }
 
-    // для совместимости с UpgradeMenu, которое передаёт UpgradeDefinition
     public int GetCurrentLevel(UpgradeDefinition def) => GetLevel(def.type);
 
+    // Капы по требованиям: Crit, Ricochet — максимум 100%
+    public bool IsCapped(UpgradeDefinition def)
+    {
+        switch (def.type)
+        {
+            case UpgradeType.CritChance: return _stats.CritChance >= 1f - 0.0001f;
+            case UpgradeType.RicochetChance: return _stats.RicochetChance >= 1f - 0.0001f;
+            default: return false;
+        }
+    }
+
+    public void ApplyUpgrade(UpgradeDefinition def)
+    {
+        if (!_upgrades.TryGetValue(def.type, out var u)) return;
+
+        // защита от перепрокачки капнутых
+        if (IsCapped(def)) return;
+
+        _stats.ApplyUpgrade(def.type, def.valueStep);
+        u.level++;
+    }
+
+    // Получить случайный набор без жёстких дублей
     public List<UpgradeDefinition> GetRandomUpgrades(int count)
     {
         var db = Game.I.upgradeDatabase;

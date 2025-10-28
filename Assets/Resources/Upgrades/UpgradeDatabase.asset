@@ -12,9 +12,29 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: bc8ce5373041d4343b7673cd7b19ef96, type: 3}
   m_Name: UpgradeDatabase
   m_EditorClassIdentifier: 
-  allUpgrades:
-  - {fileID: 11400000, guid: a6ee6fb827970ee4ba253f5164d7e9c0, type: 2}
-  - {fileID: 11400000, guid: 350f6a277b6494846aa4fe037c3199cd, type: 2}
-  - {fileID: 11400000, guid: 05b4defa797883f449998502be91f71b, type: 2}
-  - {fileID: 11400000, guid: fb2b274019861a445a04d548f96cafb1, type: 2}
-  - {fileID: 11400000, guid: 13462a227e35db442aab0500011950f4, type: 2}
+  upgrades:
+  - type: 0
+    upgradeName: Attack Damage
+    description: "+\u0443\u0440\u043E\u043D"
+    icon: {fileID: 0}
+    valueStep: 2
+  - type: 1
+    upgradeName: Attack Speed
+    description: "+\u0441\u043A\u043E\u0440\u043E\u0441\u0442\u0440\u0435\u043B\u044C\u043D\u043E\u0441\u0442\u044C"
+    icon: {fileID: 0}
+    valueStep: 0.15
+  - type: 2
+    upgradeName: Move Speed
+    description: "+\u0441\u043A\u043E\u0440\u043E\u0441\u0442\u044C"
+    icon: {fileID: 0}
+    valueStep: 0.5
+  - type: 3
+    upgradeName: Crit Chance
+    description: "+\u0448\u0430\u043D\u0441 \u043A\u0440\u0438\u0442\u0430"
+    icon: {fileID: 0}
+    valueStep: 0.05
+  - type: 4
+    upgradeName: Ricochet
+    description: "+\u0448\u0430\u043D\u0441 \u0440\u0438\u043A\u043E\u0448\u0435\u0442\u0430"
+    icon: {fileID: 0}
+    valueStep: 0.08

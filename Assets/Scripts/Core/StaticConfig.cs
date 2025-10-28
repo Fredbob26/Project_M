@@ -10,22 +10,34 @@ public class StaticConfig : ScriptableObject
     public float contactDamageSeconds = 3f;
     public float contactDamageCooldown = 0.6f;
 
-    // ---------- Player: base stats for PlayerStats.ResetFromConfig ----------
-    public float baseMoveSpeed = 7f;           // базовая скорость игрока
-    public float baseAttackSpeed = 1f;         // базовый множитель скорострельности (1 = без буста)
-    public float baseDamage = 5f;              // базовый урон
+    // ---------- Player base stats ----------
+    public float baseMoveSpeed = 7f;
+    public float baseAttackSpeed = 1f;   // множитель выстрелов/сек
+    public float baseDamage = 5f;
     [Range(0f, 1f)] public float baseCritChance = 0.05f;
     [Range(0f, 1f)] public float baseRicochetChance = 0f;
 
-    // ---------- Shooting config (используются AutoShooter/Projectile) ----------
-    public float attackInterval = 0.45f;       // базовый интервал выстрела (сек)
-    public float projectileSpeed = 22f;        // скорость пули
-    public int projectileDamage = 5;           // базовый урон пули (до добавок PlayerStats)
-    public float targetRadius = 20f;           // радиус поиска цели
+    // ---------- Shooting ----------
+    public float projectileSpeed = 22f;
+    public int projectileDamage = 5;
+    public float targetRadius = 20f;
 
-    // ---------- Enemy ----------
+    // ---------- Enemies ----------
     public int enemyBaseHP = 10;
     public float enemyBaseSpeed = 3f;
+
+    // ---------- Power-ups ----------
+    // RapidFire → в 2 раза быстрее и 3 выстрела веером
+    public float rapidFireDuration = 10f;
+    public float rapidFireSpreadDeg = 10f;     // угол отклонения влево/вправо
+    public float rapidFireFireRateMul = 2f;    // множитель скорострельности
+
+    public float shieldDuration = 5f;          // не тикает таймер от контакта
+    public float freezeDuration = 10f;         // фризит врагов
+
+    // ScoreFrenzy: даёт Х2 очков за ЭССЕНЦИИ (только в счёт, не в валюту)
+    public float scoreFrenzyDuration = 10f;
+    public float scoreFrenzyMultiplier = 2f;
 
     // ---------- Arena ----------
     private BoxCollider _arenaBounds;

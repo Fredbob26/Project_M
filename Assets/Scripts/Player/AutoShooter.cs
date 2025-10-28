@@ -9,14 +9,17 @@ public class AutoShooter : MonoBehaviour
     public Transform firePoint;
 
     [Header("Combat")]
-    public float attackRange = 12f;
+    public float attackRange = 12f;     // радиус автонаведения в обычном режиме
+    public float spawnOffset = 0.5f;    // вынос пули вперёд от firePoint, чтобы не цеплять игрока
 
     private PlayerStats _stats;
+    private Collider _playerCol;
     private float _timer;
 
     private void Awake()
     {
         _stats = GetComponent<PlayerStats>();
+        _playerCol = GetComponent<Collider>();
     }
 
     private void Update()
@@ -26,47 +29,82 @@ public class AutoShooter : MonoBehaviour
 
         _timer += Time.deltaTime;
 
-        // Интервал выстрела = 1 / AttackSpeed (с ограничением)
-        float interval = Mathf.Max(0.05f, 1f / Mathf.Max(0.01f, _stats.AttackSpeed));
+        // RapidFire: скорость = текущая AttackSpeed * множитель баффа
+        float rateMul = (Game.I.buffs ? Game.I.buffs.RapidFireRateMul : 1f);
+        float interval = Mathf.Max(0.05f, 1f / Mathf.Max(0.01f, _stats.AttackSpeed * rateMul));
 
-        if (_timer >= interval)
+        if (_timer < interval) return;
+        _timer = 0f;
+
+        bool rapid = Game.I.buffs && Game.I.buffs.RapidFireActive;
+
+        if (rapid)
         {
+            // Если есть цель — стреляем тройным веером в её сторону
             Enemy target = FindClosestEnemy();
+            Vector3 baseDir;
+
             if (target != null)
             {
-                _timer = 0f;
-                Shoot(target.transform.position);
+                baseDir = (target.transform.position - firePoint.position);
+                baseDir.y = 0f;
+                if (baseDir.sqrMagnitude < 0.0001f) baseDir = transform.forward;
+                else baseDir.Normalize();
             }
+            else
+            {
+                // Цели нет — стреляем туда, куда смотрит игрок
+                baseDir = transform.forward;
+            }
+
+            float spread = Game.I.config.rapidFireSpreadDeg;
+            ShootDir(baseDir);
+            ShootDir(Quaternion.AngleAxis(+spread, Vector3.up) * baseDir);
+            ShootDir(Quaternion.AngleAxis(-spread, Vector3.up) * baseDir);
+        }
+        else
+        {
+            // Обычный режим: автонаведение на ближайшего врага в радиусе (одиночный выстрел)
+            Enemy target = FindClosestEnemy();
+            if (target != null)
+                ShootPos(target.transform.position);
         }
     }
 
-    private void Shoot(Vector3 targetPos)
+    private void ShootPos(Vector3 targetPos)
     {
-        // Рассчитываем направление к цели
         Vector3 dir = (targetPos - firePoint.position).normalized;
+        Vector3 spawnPos = firePoint.position + dir * spawnOffset;
 
-        // Создаём пулю чуть впереди дула, чтобы не пересекалась с коллайдером игрока
-        Vector3 spawnPos = firePoint.position + dir * 0.5f;
         GameObject go = Instantiate(projectilePrefab, spawnPos, Quaternion.LookRotation(dir, Vector3.up));
-
-        // Инициализируем снаряд
         Projectile proj = go.GetComponent<Projectile>();
         if (proj != null)
-        {
-            proj.Init(targetPos, _stats.AttackDamage);
-        }
+            proj.Init(spawnPos + dir, _stats.AttackDamage); // цель как точка на линии полёта
 
-        // Игнорируем столкновение между игроком и пулей
-        Collider playerCol = GetComponent<Collider>();
-        Collider projCol = go.GetComponent<Collider>();
-        if (playerCol && projCol)
-        {
-            Physics.IgnoreCollision(playerCol, projCol, true);
-            Debug.Log($"[AutoShooter] Ignoring collision between {playerCol.name} and {projCol.name}");
-        }
+        IgnorePlayerCollision(go);
+        Debug.DrawRay(firePoint.position, dir * 2f, Color.red, 0.5f);
+    }
 
-        // Отладочный луч
-        Debug.DrawRay(firePoint.position, dir * 2f, Color.red, 1f);
+    private void ShootDir(Vector3 dir)
+    {
+        dir = (dir.sqrMagnitude > 0.0001f) ? dir.normalized : transform.forward;
+        Vector3 spawnPos = firePoint.position + dir * spawnOffset;
+
+        GameObject go = Instantiate(projectilePrefab, spawnPos, Quaternion.LookRotation(dir, Vector3.up));
+        Projectile proj = go.GetComponent<Projectile>();
+        if (proj != null)
+            proj.Init(spawnPos + dir, _stats.AttackDamage);
+
+        IgnorePlayerCollision(go);
+        Debug.DrawRay(firePoint.position, dir * 2f, Color.yellow, 0.5f);
+    }
+
+    private void IgnorePlayerCollision(GameObject projectile)
+    {
+        if (_playerCol == null) _playerCol = GetComponent<Collider>();
+        var projCol = projectile.GetComponent<Collider>();
+        if (_playerCol && projCol)
+            Physics.IgnoreCollision(_playerCol, projCol, true);
     }
 
     private Enemy FindClosestEnemy()
@@ -78,6 +116,7 @@ public class AutoShooter : MonoBehaviour
 
         foreach (Enemy e in enemies)
         {
+            if (!e) continue;
             float dist = (e.transform.position - playerPos).sqrMagnitude;
             if (dist < bestDistSqr)
             {
@@ -85,7 +124,6 @@ public class AutoShooter : MonoBehaviour
                 closest = e;
             }
         }
-
         return closest;
     }
 }

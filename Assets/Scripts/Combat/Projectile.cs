@@ -1,28 +1,23 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 
-[RequireComponent(typeof(Rigidbody), typeof(Collider))]
+[RequireComponent(typeof(Rigidbody)), RequireComponent(typeof(Collider))]
 public class Projectile : MonoBehaviour
 {
     [Header("Flight")]
-    public float speed = 20f;
+    public float speed = 22f;
     public float lifetime = 5f;
-
-    [Header("Crit & FX")]
-    public GameObject critEffectPrefab;
-    public GameObject critTextPrefab;
-    public float critTextYOffset = 2f;
 
     [Header("Ricochet")]
     public float ricochetSearchRadius = 8f;
     public int maxRicochets = 3;
 
     private Rigidbody _rb;
-    private Vector3 _direction = Vector3.zero;
+    private Collider _arena;
+    private Vector3 _dir;
     private float _damage;
-    private int _ricochetCount;
+    private int _ricochets;
     private bool _inited;
-    private Collider _arenaCollider;
 
     private void Awake()
     {
@@ -33,106 +28,96 @@ public class Projectile : MonoBehaviour
         _rb.interpolation = RigidbodyInterpolation.Interpolate;
 
         var col = GetComponent<Collider>();
-        if (col) col.isTrigger = true;
+        col.isTrigger = true; // пули — триггер для корректных попаданий по врагам
 
-        // ������� ������� ����� �� ���� LevelBounds
         var arenaObj = GameObject.FindGameObjectWithTag("LevelBounds");
-        if (arenaObj)
-            _arenaCollider = arenaObj.GetComponent<Collider>();
-
-        Debug.Log($"[Projectile] Awake -> Rigidbody ready on {name}");
+        if (arenaObj) _arena = arenaObj.GetComponent<Collider>();
     }
 
     public void Init(Vector3 targetPos, float damage)
     {
         _damage = damage;
-        _direction = (targetPos - transform.position).normalized;
+        _dir = (targetPos - transform.position).normalized;
         _inited = true;
-        _ricochetCount = 0;
+        _ricochets = 0;
         Destroy(gameObject, lifetime);
-
-        Debug.Log($"[Projectile] Init -> target:{targetPos} damage:{damage} dir:{_direction}");
     }
 
     private void FixedUpdate()
     {
         if (!_inited) return;
 
-        _rb.velocity = _direction * speed;
+        _rb.velocity = _dir * speed;
 
-        // ��������� ����� �� ������� �����
-        if (_arenaCollider != null && !_arenaCollider.bounds.Contains(transform.position))
-        {
-            Debug.Log("[Projectile] Exited arena bounds -> Destroy()");
+        if (_arena && !_arena.bounds.Contains(transform.position))
             Destroy(gameObject);
-        }
     }
 
     private void OnTriggerEnter(Collider other)
     {
         if (!_inited) return;
 
-        if (other.CompareTag("Enemy"))
+        // IDamageable может висеть на этом же коллайдере...
+        if (other.TryGetComponent<IDamageable>(out var dmg))
         {
-            var enemy = other.GetComponent<Enemy>();
-            if (!enemy) return;
+            Apply(dmg, other.transform);
+            return;
+        }
 
-            var stats = Game.I?.player?.GetComponent<PlayerStats>();
-            bool isCrit = stats != null && Random.value < Mathf.Clamp01(stats.CritChance);
-
-            float dmg = _damage;
-            if (isCrit)
-            {
-                dmg *= Random.Range(1.5f, 2.5f);
-                ShowCritEffect(enemy.transform);
-            }
-
-            enemy.TakeDamage(dmg);
-
-            if (!(stats != null && TryRicochet(enemy, stats)))
-                Destroy(gameObject);
+        // ...или на родителе
+        if (other.transform.parent && other.transform.parent.TryGetComponent<IDamageable>(out var parentDmg))
+        {
+            Apply(parentDmg, other.transform.parent);
+            return;
         }
     }
 
-    private void ShowCritEffect(Transform enemy)
+    private void Apply(IDamageable dmg, Transform hitRoot)
     {
-        if (critEffectPrefab)
-            Instantiate(critEffectPrefab, enemy.position + Vector3.up * 1.2f, Quaternion.identity);
+        var stats = Game.I?.player?.GetComponent<PlayerStats>();
+        bool isCrit = stats ? (Random.value < Mathf.Clamp01(stats.CritChance)) : false;
 
-        if (critTextPrefab)
+        // Баффов на урон сейчас нет → множитель = 1
+        float finalDamage = _damage * (isCrit ? Random.Range(1.5f, 2.5f) : 1f);
+        dmg.ApplyDamage(finalDamage, isCrit);
+
+        // --- РИКОШЕТ ПО ШАНСУ ---
+        float chance = stats ? Mathf.Clamp01(stats.RicochetChance) : 0f;
+        bool allowedByChance = Random.value < chance;
+        bool allowedByCount = _ricochets < maxRicochets;
+
+        if (allowedByChance && allowedByCount && TryFindRicochetTarget(hitRoot, out Vector3 newDir))
         {
-            var txt = Instantiate(critTextPrefab, enemy.position + Vector3.up * critTextYOffset, Quaternion.identity);
-            Destroy(txt, 1f);
+            _dir = newDir;  // меняем курс
+            _ricochets++;
+            return;
         }
+
+        Destroy(gameObject);
     }
 
-    private bool TryRicochet(Enemy hitEnemy, PlayerStats stats)
+    private bool TryFindRicochetTarget(Transform from, out Vector3 newDir)
     {
-        if (Random.value > Mathf.Clamp01(stats.RicochetChance)) return false;
-        if (_ricochetCount >= maxRicochets) return false;
+        newDir = Vector3.zero;
 
-        Collider[] hits = Physics.OverlapSphere(hitEnemy.transform.position, ricochetSearchRadius);
-        List<Enemy> candidates = new List<Enemy>(4);
+        Collider[] hits = Physics.OverlapSphere(from.position, ricochetSearchRadius);
+        List<Transform> candidates = new List<Transform>();
+
         foreach (var c in hits)
         {
-            if (c && c.TryGetComponent<Enemy>(out var e) && e != hitEnemy)
-                candidates.Add(e);
+            if (!c) continue;
+            if (c.transform == from) continue;
+
+            if (c.TryGetComponent<IDamageable>(out _))
+                candidates.Add(c.transform);
+            else if (c.transform.parent && c.transform.parent.TryGetComponent<IDamageable>(out _))
+                candidates.Add(c.transform.parent);
         }
 
         if (candidates.Count == 0) return false;
 
-        Enemy newTarget = candidates[Random.Range(0, candidates.Count)];
-        _direction = (newTarget.transform.position - transform.position).normalized;
-        _ricochetCount++;
-        Debug.Log($"[Projectile] Ricochet -> new target {newTarget.name}");
+        Transform newTarget = candidates[Random.Range(0, candidates.Count)];
+        newDir = (newTarget.position - transform.position).normalized;
         return true;
     }
-
-#if UNITY_EDITOR
-    private void OnDrawGizmosSelected()
-    {
-        Gizmos.color = Color.yellow;
-        Gizmos.DrawWireSphere(transform.position, ricochetSearchRadius);
-    }
-#endif
 }

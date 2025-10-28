@@ -1,19 +1,20 @@
 using UnityEngine;
-using UnityEngine.UI;
-using TMPro;
 using System;
 using System.Collections.Generic;
 
 public class UpgradeMenu : MonoBehaviour
 {
-    [Header("Refs")]
+    [Header("Panel")]
     public GameObject panel;
-    public Transform container;
-    public GameObject upgradeCardPrefab;
+    public bool IsOpen { get; private set; }
+
+    [Header("Fixed Cards (size = 5)")]
+    public UpgradeCardView[] cards = new UpgradeCardView[5];
 
     private PlayerStats _stats;
     private Action<UpgradeDefinition> _onPick;
     private int _currentPrice = 0;
+    private Func<UpgradeDefinition, bool> _canBuy;
 
     public void Init(PlayerStats stats)
     {
@@ -24,66 +25,54 @@ public class UpgradeMenu : MonoBehaviour
             Canvas.ForceUpdateCanvases();
             panel.SetActive(false);
         }
+        IsOpen = false;
     }
 
-    public void Show(List<UpgradeDefinition> upgrades, Action<UpgradeDefinition> onPick, int price)
+    public void Show(List<UpgradeDefinition> upgrades, Func<UpgradeDefinition, bool> canBuy, Action<UpgradeDefinition> onPick, int price)
     {
         _onPick = onPick;
         _currentPrice = price;
+        _canBuy = canBuy;
 
-        Time.timeScale = 0f;
         if (panel) panel.SetActive(true);
+        IsOpen = true;
+        Time.timeScale = 0f;
 
-        foreach (Transform child in container) Destroy(child.gameObject);
-
-        foreach (var def in upgrades)
+        for (int i = 0; i < cards.Length; i++)
         {
-            var card = Instantiate(upgradeCardPrefab, container);
+            var card = cards[i];
+            if (!card) continue;
 
-            var title = card.transform.Find("Title")?.GetComponent<TMP_Text>();
-            var desc = card.transform.Find("Desc")?.GetComponent<TMP_Text>();
-            var icon = card.transform.Find("Icon")?.GetComponent<Image>();
-            var level = card.transform.Find("Level")?.GetComponent<TMP_Text>();
-            var priceText = card.transform.Find("Price")?.GetComponent<TMP_Text>();
-            var btn = card.transform.Find("SelectButton")?.GetComponent<Button>();
-
-            if (title) title.text = def.upgradeName;
-            if (desc) desc.text = def.description;
-            if (icon) icon.sprite = def.icon;
-
-            int cur = Game.I.upgradeSystem.GetCurrentLevel(def);
-            if (level) level.text = cur > 0 ? ToRoman(cur) : "–";
-            if (priceText) priceText.text = $"{_currentPrice} Essence";
-
-            if (btn)
+            if (upgrades == null || i >= upgrades.Count || upgrades[i] == null)
             {
-                btn.onClick.RemoveAllListeners();
-                btn.onClick.AddListener(() =>
+                card.gameObject.SetActive(false);
+                continue;
+            }
+
+            var def = upgrades[i];
+            int curLevel = Game.I.upgradeSystem.GetCurrentLevel(def);
+            bool capped = Game.I.upgradeSystem.IsCapped(def);
+            bool interactable = !capped && (_canBuy == null || _canBuy(def));
+
+            card.gameObject.SetActive(true);
+            card.Set(
+                def: def,
+                currentLevel: curLevel,
+                priceValue: _currentPrice,
+                interactable: interactable,
+                isCapped: capped,
+                onClick: () =>
                 {
                     _onPick?.Invoke(def);
                     Close();
                 });
-            }
         }
     }
 
     public void Close()
     {
         if (panel) panel.SetActive(false);
+        IsOpen = false;
         Time.timeScale = 1f;
-    }
-
-    private string ToRoman(int n)
-    {
-        if (n <= 0) return "–";
-        var map = new (int, string)[] {
-            (1000,"M"),(900,"CM"),(500,"D"),(400,"CD"),
-            (100,"C"),(90,"XC"),(50,"L"),(40,"XL"),
-            (10,"X"),(9,"IX"),(5,"V"),(4,"IV"),(1,"I")
-        };
-        var s = "";
-        foreach (var (v, sym) in map)
-            while (n >= v) { s += sym; n -= v; }
-        return s;
     }
 }
