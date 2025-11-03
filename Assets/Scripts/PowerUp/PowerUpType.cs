@@ -1,9 +1,9 @@
+// ≈ƒ»Ќџ… enum на весь проект
 public enum PowerUpType
 {
-    RapidFire,   // раньше было DoubleDamage Ч заменили
-    ScoreFrenzy,
-    Shield,
-    Freeze,
-    AtomBomb
+    RapidFire,     // x2 скорострельность + веер из 3 стволов
+    ScoreFrenzy,   // x2 эссенци€ (баланс)
+    Shield,        // игнор контакт-урона
+    Freeze,        // заморозка врагов + оверлей
+    FireRing       // 3 залпа кругом без наведени€
 }
-

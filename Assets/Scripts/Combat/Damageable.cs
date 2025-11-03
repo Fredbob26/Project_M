@@ -10,32 +10,28 @@ public class Damageable : MonoBehaviour, IDamageable
     public int Current => _hp;
     public int Max => maxHP;
 
-    public event Action<int, int, bool> OnDamaged; // (current, max, isCrit)
+    public event Action<int, int, bool> OnDamaged;
     public event Action OnDeath;
 
     private bool _dead;
 
-    private void OnEnable()
+    void OnEnable()
     {
         _dead = false;
         _hp = Mathf.Max(1, maxHP);
     }
 
-    /// <summary>Правильная инициализация снаружи (НЕ вызывать OnEnable).</summary>
     public void Initialize(int max)
     {
         maxHP = Mathf.Max(1, max);
         _dead = false;
         _hp = maxHP;
-        OnDamaged?.Invoke(_hp, maxHP, false); // синхронизируем UI, если нужно
+        OnDamaged?.Invoke(_hp, maxHP, false);
     }
-
-    public void TakeDamage(int dmg) => ApplyDamage(dmg, false);
 
     public void ApplyDamage(float amount, bool isCrit = false)
     {
         if (_dead) return;
-
         int dmg = Mathf.RoundToInt(Mathf.Max(0f, amount));
         if (dmg <= 0) return;
 

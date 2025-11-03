@@ -2,5 +2,6 @@ public enum EnemyType
 {
     Base,
     Tank,
-    Bonus
+    Bonus,
+    Boss
 }

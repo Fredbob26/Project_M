@@ -15,6 +15,7 @@ GameObject:
   - component: {fileID: 967994139096424223}
   - component: {fileID: 5974829749081880208}
   - component: {fileID: 3391423031464519394}
+  - component: {fileID: 5888725373437839797}
   m_Layer: 7
   m_Name: Enemy_Tank
   m_TagString: Enemy
@@ -115,17 +116,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d062cc76ec0727f44aba06733d4ad48f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  enemyType: 1
+  type: 1
   baseMaxHP: 10
   baseSpeed: 10
-  tankHpMult: 2
-  tankSpeedMult: 0.7
-  tankExtraEssence: 1
-  bonusDropChance: 0.3
-  bonusDropPrefab: {fileID: 8372523120377720720, guid: 5a2244d74ee02844aaaaa76b1b5c3a99, type: 3}
-  bonusGuaranteedEssence: 1
   essencePrefab: {fileID: 5258796749938790707, guid: fe2d6f801afe9e248ab1c765657131d6, type: 3}
-  baseEssenceOnDeath: 1
+  bonusDropPrefab: {fileID: 0}
   healthBar: {fileID: 9160866908357623735}
 --- !u!54 &5974829749081880208
 Rigidbody:
@@ -170,13 +165,35 @@ CapsuleCollider:
     m_Bits: 0
   m_LayerOverridePriority: 0
   m_IsTrigger: 1
-  m_ProvidesContacts: 0
+  m_ProvidesContacts: 1
   m_Enabled: 1
   serializedVersion: 2
-  m_Radius: 0.5
-  m_Height: 1
+  m_Radius: 0.5454211
+  m_Height: 1.0908422
   m_Direction: 1
-  m_Center: {x: 0, y: 0, z: 0}
+  m_Center: {x: 0.003746473, y: 0, z: 0}
+--- !u!195 &5888725373437839797
+NavMeshAgent:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 284381774168573939}
+  m_Enabled: 1
+  m_AgentTypeID: 0
+  m_Radius: 0.5
+  m_Speed: 3.5
+  m_Acceleration: 8
+  avoidancePriority: 50
+  m_AngularSpeed: 120
+  m_StoppingDistance: 0
+  m_AutoTraverseOffMeshLink: 1
+  m_AutoBraking: 1
+  m_AutoRepath: 1
+  m_Height: 2
+  m_BaseOffset: 0.87
+  m_WalkableMask: 4294967295
+  m_ObstacleAvoidanceType: 4
 --- !u!1 &649065081176197877
 GameObject:
   m_ObjectHideFlags: 0

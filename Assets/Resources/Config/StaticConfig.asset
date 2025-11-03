@@ -17,14 +17,43 @@ MonoBehaviour:
   essenceSeconds: 2
   contactDamageSeconds: 3
   contactDamageCooldown: 1
+  hitFlashDuration: 0.25
+  hitFlashColor: {r: 1, g: 0, b: 0, a: 0.35}
   baseMoveSpeed: 7
   baseAttackSpeed: 1
-  baseDamage: 5
-  baseCritChance: 0.05
-  baseRicochetChance: 0
+  baseDamage: 3
+  baseCritChance: 0.3
+  baseRicochetChance: 0.125
   attackInterval: 1
   projectileSpeed: 18
   projectileDamage: 3
   targetRadius: 20
   enemyBaseHP: 9
   enemyBaseSpeed: 3
+  tankHpMul: 3
+  tankSpeedMul: 0.6
+  bonusHpMul: 0.8
+  bonusSpeedMul: 1.2
+  bossBaseHP: 300
+  bossHpGrowth: 50
+  bossSpeed: 2.5
+  bossEssenceReward: 10
+  rapidFireDuration: 10
+  rapidFireRateMul: 2
+  rapidSpreadDeg: 12
+  scoreFrenzyDuration: 10
+  scoreFrenzyMultiplier: 2
+  shieldDuration: 5
+  freezeDuration: 10
+  includeFireRingInRandom: 1
+  ringBursts: 3
+  ringProjectilesPerBurst: 36
+  ringBurstInterval: 0.15
+  ringProjectileSpeed: 26
+  ringDamage: 8
+  losBlockMask:
+    serializedVersion: 2
+    m_Bits: 4096
+  obstacleMask:
+    serializedVersion: 2
+    m_Bits: 4096

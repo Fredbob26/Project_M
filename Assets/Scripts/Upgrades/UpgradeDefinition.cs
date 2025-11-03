@@ -4,8 +4,8 @@ using UnityEngine;
 public class UpgradeDefinition
 {
     public UpgradeType type;
-    public string upgradeName;       // используется в UpgradeMenu
+    public string upgradeName;
     [TextArea] public string description;
     public Sprite icon;
-    public float valueStep;          // шаг увеличения значения
+    public float valueStep;
 }

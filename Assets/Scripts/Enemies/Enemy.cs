@@ -1,182 +1,144 @@
+п»ї// Assets/Scripts/Enemies/Enemy.cs
 using UnityEngine;
+using UnityEngine.AI;
 
-[RequireComponent(typeof(Rigidbody))]
+[RequireComponent(typeof(NavMeshAgent))]
 [RequireComponent(typeof(CapsuleCollider))]
 [RequireComponent(typeof(Damageable))]
 public class Enemy : MonoBehaviour
 {
+    public enum EnemyType { Base, Tank, Bonus, Boss }
+
+    [Header("Type")]
+    public EnemyType type = EnemyType.Base;
+
     [Header("Stats (fallback)")]
     public int baseMaxHP = 10;
-    public float baseSpeed = 3f;
+    public float baseSpeed = 3.5f;
 
     [Header("Drops")]
-    public EssencePickup essencePrefab;          // обычная эссенция
-    [Range(0f, 1f)] public float bonusDropChance = 0.15f;
-    public BonusDrop bonusDropPrefab;            // бонусный дроп (PowerUp)
+    public EssencePickup essencePrefab;    // Base/Tank/Boss
+    public BonusDrop bonusDropPrefab;      // Bonus-only
 
     [Header("UI")]
-    public EnemyHealthBar healthBar; // в префабе оставь выключенным (SetActive=false)
+    public EnemyHealthBar healthBar;       // РґРµСЂР¶Рё РІС‹РєР»СЋС‡РµРЅРЅС‹Рј РІ РїСЂРµС„Р°Р±Рµ
 
-    // --- runtime ---
-    private Rigidbody _rb;
-    private Transform _player;
-    private float _speed;
-    private Damageable _hp;
-    private float _nextContactTime;
-    private bool _typedInitApplied = false;
+    NavMeshAgent _agent;
+    Transform _player;
+    Damageable _hp;
+    float _nextContact;
 
-    private void Awake()
+    public void InitType(EnemyType t) => type = t;
+
+    void Awake()
     {
-        _rb = GetComponent<Rigidbody>();
-        _rb.useGravity = true;
-        _rb.isKinematic = false;
-        _rb.interpolation = RigidbodyInterpolation.Interpolate;
-        _rb.collisionDetectionMode = CollisionDetectionMode.Discrete;
-        _rb.constraints = RigidbodyConstraints.FreezeRotationX |
-                          RigidbodyConstraints.FreezeRotationZ |
-                          RigidbodyConstraints.FreezePositionY;
+        _agent = GetComponent<NavMeshAgent>();
+        _hp = GetComponent<Damageable>();
 
         var col = GetComponent<CapsuleCollider>();
-        col.isTrigger = false;
+        if (col) col.isTrigger = true;
 
-        _hp = GetComponent<Damageable>();
         tag = "Enemy";
     }
 
-    private void Start()
+    void Start()
     {
-        // Если InitType не вызывали — применим значения из конфига/фолбэки.
-        if (!_typedInitApplied)
-        {
-            int maxHp = baseMaxHP;
-            if (Game.I && Game.I.config)
-            {
-                maxHp = Mathf.Max(1, Game.I.config.enemyBaseHP);
-                _speed = Mathf.Max(0f, Game.I.config.enemyBaseSpeed);
-            }
-            else
-            {
-                _speed = baseSpeed;
-            }
+        var p = GameObject.FindGameObjectWithTag("Player");
+        if (p) _player = p.transform;
 
-            _hp.Initialize(maxHp);
+        int maxHp = baseMaxHP;
+        float speed = baseSpeed;
+
+        var cfg = Game.I ? Game.I.config : null;
+        if (cfg)
+        {
+            switch (type)
+            {
+                case EnemyType.Base:
+                    maxHp = cfg.enemyBaseHP;
+                    speed = cfg.enemyBaseSpeed;
+                    break;
+                case EnemyType.Tank:
+                    maxHp = Mathf.RoundToInt(cfg.enemyBaseHP * cfg.tankHpMul);
+                    speed = cfg.enemyBaseSpeed * cfg.tankSpeedMul;
+                    break;
+                case EnemyType.Bonus:
+                    maxHp = Mathf.RoundToInt(cfg.enemyBaseHP * cfg.bonusHpMul);
+                    speed = cfg.enemyBaseSpeed * cfg.bonusSpeedMul;
+                    break;
+                case EnemyType.Boss:
+                    int wave = Game.I ? Game.I.enemiesKilled : 0;
+                    maxHp = Mathf.RoundToInt(cfg.bossBaseHP + cfg.bossHpGrowth * wave);
+                    speed = cfg.bossSpeed;
+                    break;
+            }
         }
 
-        if (!healthBar) healthBar = GetComponentInChildren<EnemyHealthBar>(true);
+        _hp.Initialize(maxHp);
+        _agent.speed = speed;
+        _agent.acceleration = 40f;
+        _agent.angularSpeed = 720f;
+        _agent.stoppingDistance = 0f;
+        _agent.updateRotation = true;
 
-        // Показ/обновление бара при уроне
+        if (healthBar == null) healthBar = GetComponentInChildren<EnemyHealthBar>(true);
         _hp.OnDamaged += (cur, max, crit) =>
         {
-            if (healthBar)
+            if (healthBar != null)
             {
                 if (!healthBar.gameObject.activeSelf) healthBar.Show();
                 healthBar.SetTarget(cur, max);
             }
         };
-
         _hp.OnDeath += OnDied;
-
-        var p = GameObject.FindGameObjectWithTag("Player");
-        if (p) _player = p.transform;
     }
 
-    private void FixedUpdate()
+    void Update()
     {
-        if (Game.I && Game.I.buffs && Game.I.buffs.FreezeActive)
-        {
-            _rb.velocity = Vector3.zero;
-            return;
-        }
-
         if (_player == null) return;
 
-        Vector3 dir = _player.position - transform.position; dir.y = 0f;
-        float d = dir.magnitude;
-        if (d > 0.001f)
+        // Freeze вЂ” СЃС‚РѕРїР°РµРј Р°РіРµРЅС‚Р° (РёСЃРїРѕР»СЊР·СѓРµРј powerUps, Р° РЅРµ buffs)
+        bool frozen = (Game.I && Game.I.powerUps && Game.I.powerUps.FreezeActive);
+        if (frozen)
         {
-            dir /= d;
-            _rb.velocity = dir * _speed;
-            transform.forward = Vector3.Slerp(transform.forward, dir, 12f * Time.fixedDeltaTime);
+            if (!_agent.isStopped) _agent.isStopped = true;
+            return;
         }
-        else
+        else if (_agent.isStopped)
         {
-            _rb.velocity = Vector3.zero;
+            _agent.isStopped = false;
         }
+
+        _agent.SetDestination(_player.position);
     }
 
-
-    private void OnCollisionStay(Collision collision)
+    // РљРѕРЅС‚Р°РєС‚РЅС‹Р№ СѓСЂРѕРЅ вЂ” РєРѕР»Р»Р°Р№РґРµСЂ РІСЂР°РіР° С‚СЂРёРіРіРµСЂРЅС‹Р№
+    void OnTriggerStay(Collider other)
     {
-        if (!collision.transform.CompareTag("Player")) return;
+        if (!other.CompareTag("Player")) return;
         if (!(Game.I && Game.I.config && Game.I.lifeTimer)) return;
 
-        float now = Time.time;
-        if (now < _nextContactTime) return;
+        float cd = Mathf.Max(0.05f, Game.I.config.contactDamageCooldown);
+        if (Time.time < _nextContact) return;
+        _nextContact = Time.time + cd;
 
-        _nextContactTime = now + Game.I.config.contactDamageCooldown;
-
-        // Shield учитывается в LifeTimer.TakeContactDamage
+        // Р¤Р»СЌС€ РґРµР»Р°РµС‚ LifeTimer (РѕРЅ Р¶Рµ СѓС‡РёС‚С‹РІР°РµС‚ Р°РєС‚РёРІРЅС‹Р№ С‰РёС‚)
         Game.I.lifeTimer.TakeContactDamage(Game.I.config.contactDamageSeconds);
     }
 
-    private void OnDied()
+    void OnDied()
     {
-        // 1) Эссенция — всегда
-        if (essencePrefab)
-            Instantiate(essencePrefab, transform.position, Quaternion.identity);
-
-        // 2) Бонусный дроп — по шансу
-        if (bonusDropPrefab && Random.value < bonusDropChance)
-            Instantiate(bonusDropPrefab, transform.position, Quaternion.identity);
-
-        Game.I?.OnEnemyKilled();
-        // Уничтожение объекта — делает Damageable (Destroy в OnDeath).
-    }
-
-    // ==========================
-    //          API
-    // ==========================
-    /// <summary>
-    /// Типовая инициализация параметров врага по глобальному enum EnemyType,
-    /// которым пользуется спавнер.
-    /// </summary>
-    public void InitType(EnemyType kind)
-    {
-        var cfg = Game.I ? Game.I.config : null;
-
-        int baseHP = cfg ? Mathf.Max(1, cfg.enemyBaseHP) : baseMaxHP;
-        float baseSpd = cfg ? Mathf.Max(0f, cfg.enemyBaseSpeed) : baseSpeed;
-
-        int hp = baseHP;
-        float spd = baseSpd;
-        float bonusChance = bonusDropChance;
-
-        switch (kind)
+        if (type == EnemyType.Base || type == EnemyType.Tank || type == EnemyType.Boss)
         {
-            case EnemyType.Base:
-                // без изменений
-                break;
-
-            case EnemyType.Tank:
-                // танк: x2 HP, 0.7 скорости, немного выше шанс бонуса
-                hp = Mathf.RoundToInt(baseHP * 2f);
-                spd = baseSpd * 0.7f;
-                bonusChance = Mathf.Max(bonusChance, 0.20f);
-                break;
-
-            case EnemyType.Bonus:
-                // бонусный: меньше HP, быстрее, высокий шанс бонус-дропа
-                hp = Mathf.RoundToInt(baseHP * 0.6f);
-                if (hp < 1) hp = 1;
-                spd = baseSpd * 1.25f;
-                bonusChance = 0.75f;
-                break;
+            if (essencePrefab) Instantiate(essencePrefab, transform.position, Quaternion.identity);
         }
 
-        _speed = spd;
-        bonusDropChance = bonusChance;
-        _hp.Initialize(hp);
+        if (type == EnemyType.Bonus)
+        {
+            if (bonusDropPrefab) Instantiate(bonusDropPrefab, transform.position, Quaternion.identity);
+            else if (essencePrefab) Instantiate(essencePrefab, transform.position, Quaternion.identity);
+        }
 
-        _typedInitApplied = true;
+        Game.I?.OnEnemyKilled();
     }
 }

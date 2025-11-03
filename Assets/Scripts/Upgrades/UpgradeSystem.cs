@@ -25,20 +25,15 @@ public class UpgradeSystem
     {
         _stats = stats;
         foreach (var def in db.upgrades)
-        {
             if (!_upgrades.ContainsKey(def.type))
                 _upgrades[def.type] = new Upgrade(def.type, def.valueStep);
-        }
     }
 
-    public int GetLevel(UpgradeType type)
-    {
-        return _upgrades.TryGetValue(type, out var u) ? u.level : 0;
-    }
+    public int GetLevel(UpgradeType type) =>
+        _upgrades.TryGetValue(type, out var u) ? u.level : 0;
 
     public int GetCurrentLevel(UpgradeDefinition def) => GetLevel(def.type);
 
-    //  апы по требовани€м: Crit, Ricochet Ч максимум 100%
     public bool IsCapped(UpgradeDefinition def)
     {
         switch (def.type)
@@ -52,15 +47,12 @@ public class UpgradeSystem
     public void ApplyUpgrade(UpgradeDefinition def)
     {
         if (!_upgrades.TryGetValue(def.type, out var u)) return;
-
-        // защита от перепрокачки капнутых
         if (IsCapped(def)) return;
 
         _stats.ApplyUpgrade(def.type, def.valueStep);
         u.level++;
     }
 
-    // ѕолучить случайный набор без жЄстких дублей
     public List<UpgradeDefinition> GetRandomUpgrades(int count)
     {
         var db = Game.I.upgradeDatabase;

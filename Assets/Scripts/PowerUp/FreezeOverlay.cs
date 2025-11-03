@@ -1,35 +1,80 @@
+﻿using System.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 
-[RequireComponent(typeof(Image))]
+[DisallowMultipleComponent]
 public class FreezeOverlay : MonoBehaviour
 {
-    public float targetAlpha = 0.5f;
-    public float fadeSpeed = 6f;
+    [SerializeField] private Image overlay;
+    [SerializeField] private Color color = new Color(0f, 0.55f, 1f, 0.35f);
+    [SerializeField] private bool fade = true;
+    [SerializeField] private float fadeTime = 0.15f;
 
-    private Image _img;
-    private Color _c;
+    Coroutine _co;
 
-    private void Awake()
+    void Awake()
     {
-        _img = GetComponent<Image>();
-        _c = _img.color;
-        _img.raycastTarget = false;
-        SetAlpha(0f);
+        if (!overlay) overlay = GetComponentInChildren<Image>(true);
+        if (overlay)
+        {
+            overlay.enabled = false;
+            overlay.raycastTarget = false;
+        }
     }
 
-    private void Update()
+    public void Show(float duration)
     {
-        bool active = Game.I && Game.I.buffs && Game.I.buffs.FreezeActive;
-        float a = Mathf.MoveTowards(_img.color.a, active ? targetAlpha : 0f, fadeSpeed * Time.deltaTime);
-        SetAlpha(a);
+        if (!overlay) return;
+        if (_co != null) StopCoroutine(_co);
+        _co = StartCoroutine(Run(duration));
     }
 
-    private void SetAlpha(float a)
+    public void Hide()
     {
-        _c = _img.color;
-        _c.a = a;
-        _img.color = _c;
+        if (!overlay) return;
+        if (_co != null) StopCoroutine(_co);
+        overlay.enabled = false;
+        _co = null;
+    }
+
+    IEnumerator Run(float duration)
+    {
+        overlay.color = new Color(color.r, color.g, color.b, 0f);
+        overlay.enabled = true;
+
+        if (fade && fadeTime > 0f)
+        {
+            float t = 0f;
+            while (t < fadeTime)
+            {
+                t += Time.deltaTime;
+                float a = Mathf.Clamp01(t / fadeTime) * color.a;
+                overlay.color = new Color(color.r, color.g, color.b, a);
+                yield return null;
+            }
+        }
+        else overlay.color = color;
+
+        float alive = 0f;
+        while (alive < duration)
+        {
+            alive += Time.deltaTime;
+            yield return null;
+        }
+
+        if (fade && fadeTime > 0f)
+        {
+            float t = 0f; float startA = overlay.color.a;
+            while (t < fadeTime)
+            {
+                t += Time.deltaTime;
+                float a = Mathf.Lerp(startA, 0f, t / fadeTime);
+                overlay.color = new Color(color.r, color.g, color.b, a);
+                yield return null;
+            }
+        }
+
+        overlay.enabled = false;
+        _co = null;
     }
 }
-

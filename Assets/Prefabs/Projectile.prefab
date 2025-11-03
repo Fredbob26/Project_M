@@ -121,9 +121,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   speed: 22
   lifetime: 5
-  critEffectPrefab: {fileID: 3071463037042228704, guid: dc531d7342ca2944a872ebf37ef64753, type: 3}
-  critTextPrefab: {fileID: 7715566230235048472, guid: 29735a882667c11449f3e86f33e88015, type: 3}
   ricochetSearchRadius: 8
+  maxRicochets: 3
+  critVfxPrefab: {fileID: 3071463037042228704, guid: dc531d7342ca2944a872ebf37ef64753, type: 3}
+  critPopupPrefab: {fileID: 7715566230235048472, guid: 29735a882667c11449f3e86f33e88015, type: 3}
 --- !u!54 &-2767518480371903549
 Rigidbody:
   m_ObjectHideFlags: 0

@@ -1,20 +1,32 @@
 using UnityEngine;
+using UnityEngine.UI;
+using TMPro;
 using System;
 using System.Collections.Generic;
 
 public class UpgradeMenu : MonoBehaviour
 {
-    [Header("Panel")]
-    public GameObject panel;
-    public bool IsOpen { get; private set; }
+    [Serializable]
+    public class CardRefs
+    {
+        public GameObject root;
+        public TMP_Text title;
+        public TMP_Text desc;
+        public Image icon;
+        public TMP_Text level;
+        public TMP_Text price;
+        public Button selectButton;
+    }
 
-    [Header("Fixed Cards (size = 5)")]
-    public UpgradeCardView[] cards = new UpgradeCardView[5];
+    [Header("Refs")]
+    public GameObject panel;
+    public CardRefs[] cards;
 
     private PlayerStats _stats;
     private Action<UpgradeDefinition> _onPick;
-    private int _currentPrice = 0;
-    private Func<UpgradeDefinition, bool> _canBuy;
+    private int _price = 0;
+
+    public bool IsOpen => panel && panel.activeSelf;
 
     public void Init(PlayerStats stats)
     {
@@ -25,54 +37,72 @@ public class UpgradeMenu : MonoBehaviour
             Canvas.ForceUpdateCanvases();
             panel.SetActive(false);
         }
-        IsOpen = false;
     }
 
-    public void Show(List<UpgradeDefinition> upgrades, Func<UpgradeDefinition, bool> canBuy, Action<UpgradeDefinition> onPick, int price)
+    public void Show(List<UpgradeDefinition> upgrades, Func<UpgradeDefinition, bool> canAfford, Action<UpgradeDefinition> onPick, int price)
     {
+        if (upgrades == null || upgrades.Count == 0 || cards == null || cards.Length == 0) return;
+
         _onPick = onPick;
-        _currentPrice = price;
-        _canBuy = canBuy;
+        _price = price;
+
+        Time.timeScale = 0f;
+        Game.I?.powerUps?.SetPaused(true);
 
         if (panel) panel.SetActive(true);
-        IsOpen = true;
-        Time.timeScale = 0f;
 
         for (int i = 0; i < cards.Length; i++)
         {
+            bool has = i < upgrades.Count;
             var card = cards[i];
-            if (!card) continue;
+            if (!card.root) continue;
 
-            if (upgrades == null || i >= upgrades.Count || upgrades[i] == null)
-            {
-                card.gameObject.SetActive(false);
-                continue;
-            }
+            card.root.SetActive(has);
+            if (!has) continue;
 
             var def = upgrades[i];
-            int curLevel = Game.I.upgradeSystem.GetCurrentLevel(def);
-            bool capped = Game.I.upgradeSystem.IsCapped(def);
-            bool interactable = !capped && (_canBuy == null || _canBuy(def));
 
-            card.gameObject.SetActive(true);
-            card.Set(
-                def: def,
-                currentLevel: curLevel,
-                priceValue: _currentPrice,
-                interactable: interactable,
-                isCapped: capped,
-                onClick: () =>
+            if (card.title) card.title.text = def.upgradeName;
+            if (card.desc) card.desc.text = def.description;
+            if (card.icon) card.icon.sprite = def.icon;
+
+            int curLvl = Game.I.upgradeSystem.GetCurrentLevel(def);
+            if (card.level) card.level.text = curLvl > 0 ? ToRoman(curLvl) : "–";
+            if (card.price) card.price.text = $"{_price} Essence";
+
+            bool afford = canAfford?.Invoke(def) ?? true;
+
+            if (card.selectButton)
+            {
+                card.selectButton.interactable = afford;
+                card.selectButton.onClick.RemoveAllListeners();
+                card.selectButton.onClick.AddListener(() =>
                 {
                     _onPick?.Invoke(def);
                     Close();
                 });
+            }
         }
     }
 
     public void Close()
     {
         if (panel) panel.SetActive(false);
-        IsOpen = false;
+        Game.I?.powerUps?.SetPaused(false);
         Time.timeScale = 1f;
+    }
+
+    private string ToRoman(int n)
+    {
+        if (n <= 0) return "–";
+        var map = new (int, string)[] {
+            (1000,"M"),(900,"CM"),(500,"D"),(400,"CD"),
+            (100,"C"),(90,"XC"),(50,"L"),(40,"XL"),
+            (10,"X"),(9,"IX"),(5,"V"),(4,"IV"),(1,"I")
+        };
+        var s = "";
+        foreach (var (v, sym) in map)
+            while (n >= v) { s += sym; n -= v; }
+        return s;
     }
 }

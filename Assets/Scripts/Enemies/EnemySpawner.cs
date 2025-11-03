@@ -2,163 +2,92 @@
 
 public class EnemySpawner : MonoBehaviour
 {
-    [Header("Prefabs by type")]
+    [Header("Arena")]
+    public BoxCollider arenaBounds;  // если пусто — возьмём из StaticConfig.ArenaBounds
+    public Transform parent;
+
+    [Header("SPM (спавны/минуту)")]
+    public AnimationCurve spmCurve = AnimationCurve.Linear(0, 20, 300, 80);
+    [Tooltip("Нормализация кривой (секунды игры).")] public float curveTimeScale = 1f;
+
+    [Header("Mix & Chances")]
+    [Tooltip("Вероятность бонусного врага (0..1).")] public float bonusChance = 0.1f;
+    [Tooltip("Через сколько секунд после начала разрешить Танка.")] public float tankUnlockTime = 60f;
+
+    [Header("Boss schedule")]
+    [Tooltip("Через сколько секунд впервые вызвать босса.")] public float bossFirstDelay = 300f;
+    [Tooltip("Периодичность боссов, сек.")] public float bossPeriod = 300f;
+
+    [Header("Prefabs")]
     public Enemy baseEnemyPrefab;
     public Enemy tankEnemyPrefab;
     public Enemy bonusEnemyPrefab;
-    public Transform parent;
+    public Enemy bossPrefab;
 
-    [Header("Bounds")]
-    public BoxCollider arenaBounds;          // если не задан, возьмём по тегу LevelBounds
+    float _timerSpawn;
+    float _nextBossTime;
+    float _t;
 
-    [Header("SPM (spawns per minute)")]
-    public float initialSPM = 20f;           // стартовые спавны/мин
-    public float spmGrowthPerMinute = 6f;    // рост спавнов/мин каждый реальный мин.
-
-    [Header("Spawn height")]
-    [Tooltip("Добавляется к найденной высоте земли")]
-    public float spawnHeight = 0.8f;
-
-    [Tooltip("Слой(и) земли для Raycast")]
-    public LayerMask groundMask = ~0;
-
-    [Header("Distance from player")]
-    public float minDistanceFromPlayer = 2.5f;
-
-    [Header("Enemy Type Chances")]
-    [Tooltip("Шанс бонусного врага (0..1)")]
-    public float bonusEnemyChance = 0.05f;
-
-    [Tooltip("Шанс танка после разблокировки (0..1), применяется если рулетка не попала в Bonus")]
-    public float tankEnemyChance = 0.20f;
-
-    [Tooltip("С какой минуты включать шанс танка")]
-    public float tankUnlockMinute = 1.0f;
-
-    // runtime
-    private float _startTime;
-    private float _nextSpawnAt;
-    private Transform _player;
-
-    private void Awake()
+    void Start()
     {
-        if (!arenaBounds)
+        if (arenaBounds == null) arenaBounds = Game.I.config.ArenaBounds;
+        if (parent == null) parent = transform;
+        _t = 0f;
+        _nextBossTime = bossFirstDelay > 0f ? bossFirstDelay : 999999f;
+    }
+
+    void Update()
+    {
+        if (Game.I == null || !Game.I.GameReady) return;
+
+        _t += Time.deltaTime;
+
+        if (bossPrefab && _t >= _nextBossTime)
         {
-            var lb = GameObject.FindGameObjectWithTag("LevelBounds");
-            if (lb) arenaBounds = lb.GetComponent<BoxCollider>();
+            SpawnEnemy(bossPrefab, Enemy.EnemyType.Boss);
+            _nextBossTime += Mathf.Max(1f, bossPeriod);
         }
-        if (!parent) parent = transform;
 
-        var p = GameObject.FindGameObjectWithTag("Player");
-        if (p) _player = p.transform;
-    }
+        float spm = Mathf.Max(0f, spmCurve.Evaluate(_t / Mathf.Max(0.01f, curveTimeScale)));
+        float interval = (spm <= 0.01f) ? 9999f : 60f / spm;
 
-    private void OnEnable()
-    {
-        _startTime = Time.time;
-        ScheduleNextSpawn(Time.time);
-    }
-
-    private void Update()
-    {
-        if (!Game.I || !Game.I.GameReady) return;
-        if (!arenaBounds) return;
-
-        if (Time.time >= _nextSpawnAt)
+        _timerSpawn += Time.deltaTime;
+        if (_timerSpawn >= interval)
         {
-            SpawnOne();
-            ScheduleNextSpawn(_nextSpawnAt); // отталкиваемся от предыдущей точки — без «залпов»
+            _timerSpawn = 0f;
+            SpawnRegular();
         }
     }
 
-    private float GetCurrentSPM(float now)
+    void SpawnRegular()
     {
-        float minutes = Mathf.Max(0f, (now - _startTime) / 60f);
-        return Mathf.Max(0.1f, initialSPM + spmGrowthPerMinute * minutes);
+        bool tankUnlocked = _t >= tankUnlockTime;
+
+        bool isBonus = bonusEnemyPrefab && Random.value < Mathf.Clamp01(bonusChance);
+        if (isBonus)
+        {
+            SpawnEnemy(bonusEnemyPrefab, Enemy.EnemyType.Bonus);
+            return;
+        }
+
+        if (tankUnlocked && tankEnemyPrefab && Random.value < 0.25f)
+            SpawnEnemy(tankEnemyPrefab, Enemy.EnemyType.Tank);
+        else if (baseEnemyPrefab)
+            SpawnEnemy(baseEnemyPrefab, Enemy.EnemyType.Base);
     }
 
-    private void ScheduleNextSpawn(float anchorTime)
+    void SpawnEnemy(Enemy prefab, Enemy.EnemyType type)
     {
-        float spm = GetCurrentSPM(anchorTime);
-        float interval = 60f / spm;
-        _nextSpawnAt = anchorTime + interval;
-    }
-
-    private void SpawnOne()
-    {
-        var prefab = PickPrefab(out var type);
-
-        if (!prefab) return;
+        if (!arenaBounds || !prefab) return;
 
         Bounds b = arenaBounds.bounds;
-
-        // Сэмплим XZ
         Vector3 pos = new Vector3(
             Random.Range(b.min.x, b.max.x),
-            b.max.y + 5f, // стартовая высота для Raycast сверху
+            prefab.transform.position.y,
             Random.Range(b.min.z, b.max.z)
         );
 
-        // Держим дистанцию от игрока
-        if (_player && minDistanceFromPlayer > 0f)
-        {
-            float minSqr = minDistanceFromPlayer * minDistanceFromPlayer;
-            int tries = 8;
-            while (tries-- > 0 && (pos - _player.position).sqrMagnitude < minSqr)
-            {
-                pos.x = Random.Range(b.min.x, b.max.x);
-                pos.z = Random.Range(b.min.z, b.max.z);
-            }
-        }
-
-        // Ищем землю лучом вниз
-        float rayLen = Mathf.Max(10f, b.size.y + 10f);
-        Vector3 rayOrigin = new Vector3(pos.x, b.max.y + 5f, pos.z);
-        if (Physics.Raycast(rayOrigin, Vector3.down, out RaycastHit hit, rayLen, groundMask, QueryTriggerInteraction.Ignore))
-        {
-            pos.y = hit.point.y + spawnHeight;
-        }
-        else
-        {
-            pos.y = b.min.y + spawnHeight;
-        }
-
-        var inst = Instantiate(prefab, pos, Quaternion.identity, parent);
-        // На случай если в варианте префаба тип не совпадает с рулеткой — синхронизируем:
-        var e = inst.GetComponent<Enemy>();
-        if (e) e.InitType(type);
-    }
-
-    private Enemy PickPrefab(out EnemyType type)
-    {
-        type = RollType();
-
-        switch (type)
-        {
-            case EnemyType.Bonus:
-                if (bonusEnemyPrefab) return bonusEnemyPrefab;
-                break;
-            case EnemyType.Tank:
-                if (tankEnemyPrefab) return tankEnemyPrefab;
-                break;
-        }
-        // Fallback — базовый
-        type = EnemyType.Base;
-        return baseEnemyPrefab;
-    }
-
-    private EnemyType RollType()
-    {
-        float minutes = Mathf.Max(0f, (Time.time - _startTime) / 60f);
-
-        // Сначала шанс бонусного
-        if (Random.value < Mathf.Clamp01(bonusEnemyChance))
-            return EnemyType.Bonus;
-
-        // Затем шанс танка (после разблокировки)
-        if (minutes >= tankUnlockMinute && Random.value < Mathf.Clamp01(tankEnemyChance))
-            return EnemyType.Tank;
-
-        return EnemyType.Base;
+        Enemy e = Instantiate(prefab, pos, Quaternion.identity, parent);
+        e.InitType(type);
     }
 }

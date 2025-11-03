@@ -1,59 +1,90 @@
+﻿// Assets/Scripts/Upgrades/UpgradeHint.cs
+using System.Collections.Generic;
 using UnityEngine;
-using TMPro;
 
 public class UpgradeHint : MonoBehaviour
 {
-    [Header("Refs")]
-    public UpgradeFlow flow;
-    public TMP_Text hintText;          // ��� TMP_Text "������� E..."
+    [Header("UI")]
+    [Tooltip("Объект хинта (текст/иконка). Если не задан, используется этот же GameObject.")]
+    [SerializeField] private GameObject hintRoot;
 
-    [Header("Visual")]
-    public string message = "������� E ��� ��������";
-    public bool blink = true;
-    public float blinkSpeed = 2f;
-    public Color visibleColor = new Color(1, 1, 1, 1);
-    public Color hiddenColor = new Color(1, 1, 1, 0);
+    [Tooltip("Скорость мигания при доступном апгрейде.")]
+    [SerializeField] private float blinkSpeed = 4f;
 
-    bool _wantShow;
+    private UpgradeFlow _flow;
+    private UpgradeMenu _menu;
+    private CanvasGroup _cg;
 
-    void Reset()
+    private void Awake()
     {
-        hintText = GetComponent<TMP_Text>();
+        // Если не назначили — считаем корнем сам объект с этим скриптом
+        if (hintRoot == null)
+            hintRoot = gameObject;
+
+        // Хинт ДОЛЖЕН быть активен в сцене,
+        // видимость мы регулируем только через CanvasGroup.alpha
+        if (!hintRoot.activeSelf)
+            hintRoot.SetActive(true);
+
+        _cg = hintRoot.GetComponent<CanvasGroup>();
+        if (_cg == null)
+            _cg = hintRoot.AddComponent<CanvasGroup>();
+
+        // По умолчанию — полностью прозрачный (невидимый)
+        _cg.alpha = 0f;
+
+        _flow = FindObjectOfType<UpgradeFlow>(true);
+        _menu = FindObjectOfType<UpgradeMenu>(true);
     }
 
-    void Awake()
+    private void Update()
     {
-        if (!hintText) hintText = GetComponent<TMP_Text>();
-        if (hintText) { hintText.text = message; hintText.color = hiddenColor; }
-    }
+        if (hintRoot == null || _cg == null)
+            return;
 
-    void Update()
-    {
-        if (!flow || !hintText) return;
-
-        // ����������, ����� �� ������� (��� �� �������, ��� � ��� ����)
-        _wantShow = flow.CanOpenNow();
-
-        if (!_wantShow)
+        // Игры ещё нет / не готова — хинт невидим
+        if (Game.I == null || !Game.I.GameReady)
         {
-            // ������ ������
-            hintText.color = Color.Lerp(hintText.color, hiddenColor, Time.unscaledDeltaTime * 10f);
+            SetAlpha(0f);
             return;
         }
 
-        // ���������� (������, ���� �����)
-        if (blink)
+        // Перестраховка: вдруг Flow/Menu пересоздали
+        if (_flow == null) _flow = FindObjectOfType<UpgradeFlow>(true);
+        if (_menu == null) _menu = FindObjectOfType<UpgradeMenu>(true);
+
+        if (_flow == null || _menu == null)
         {
-            float a = 0.5f + 0.5f * Mathf.Sin(Time.unscaledTime * blinkSpeed);
-            var c = visibleColor; c.a = Mathf.Lerp(0.25f, 1f, a);
-            hintText.color = c;
+            SetAlpha(0f);
+            return;
+        }
+
+        // Если меню уже открыто — хинт скрыт
+        if (_menu.IsOpen)
+        {
+            SetAlpha(0f);
+            return;
+        }
+
+        // Проверяем, можно ли открыть меню и есть ли реальные офферы
+        List<UpgradeDefinition> offers;
+        bool canOpen = _flow.CanOpenNow(out offers) && offers != null && offers.Count > 0;
+
+        if (!canOpen)
+        {
+            // Недоступно — хинт просто прозрачный
+            SetAlpha(0f);
         }
         else
         {
-            hintText.color = visibleColor;
+            // Доступно — мигание по unscaledTime (работает даже если Time.timeScale=0 при паузе)
+            float a = 0.5f + 0.5f * Mathf.Sin(Time.unscaledTime * blinkSpeed);
+            SetAlpha(a);
         }
+    }
 
-        // ������ ���������� ����� (����� ������/������ ��������)
-        if (hintText.text != message) hintText.text = message;
+    private void SetAlpha(float a)
+    {
+        _cg.alpha = Mathf.Clamp01(a);
     }
 }
